@@ -48,6 +48,8 @@ _C.MODEL.FCOS.CENTER_SAMPLE = True
 _C.MODEL.FCOS.POS_RADIUS = 1.5
 _C.MODEL.FCOS.LOC_LOSS_TYPE = 'giou'
 
+_C.MODEL.FCOS.CLASS_FILTER = []
+
 
 # ---------------------------------------------------------------------------- #
 # VoVNet backbone
@@ -77,6 +79,8 @@ _C.MODEL.ROI_MASKIOU_HEAD = CN()
 _C.MODEL.ROI_MASKIOU_HEAD.NAME = "MaskIoUHead"
 _C.MODEL.ROI_MASKIOU_HEAD.CONV_DIM = 256
 _C.MODEL.ROI_MASKIOU_HEAD.NUM_CONV = 4
+
+_C.MODEL.ROI_HEADS.CLASS_FILTER = []
 
 
 # ---------------------------------------------------------------------------- #

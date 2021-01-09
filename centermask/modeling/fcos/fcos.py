@@ -8,6 +8,7 @@ from detectron2.layers import ShapeSpec
 from detectron2.modeling.proposal_generator.build import PROPOSAL_GENERATOR_REGISTRY
 
 from centermask.layers import DFConv2d, IOULoss
+from centermask.utils.comm import filter_instance_classes
 from .fcos_outputs import FCOSOutputs
 
 
@@ -48,6 +49,10 @@ class FCOS(nn.Module):
         self.mask_on              = cfg.MODEL.MASK_ON #ywlee
         # fmt: on
         self.iou_loss = IOULoss(cfg.MODEL.FCOS.LOC_LOSS_TYPE)
+        # filter class
+        self.class_filter = []
+        if 'CLASS_FILTER' in cfg.MODEL.FCOS:
+            self.class_filter = cfg.MODEL.FCOS.CLASS_FILTER
         # generate sizes of interest
         soi = []
         prev_size = -1
@@ -84,6 +89,8 @@ class FCOS(nn.Module):
             pre_nms_topk = self.pre_nms_topk_test
             post_nms_topk = self.post_nms_topk_test
 
+        if gt_instances is not None:
+            gt_instances = filter_instance_classes(gt_instances, self.class_filter, self.training)
         outputs = FCOSOutputs(
             images,
             locations,

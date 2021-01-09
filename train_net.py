@@ -3,30 +3,22 @@
 import logging
 import os
 from collections import OrderedDict
-import torch
 
 import detectron2.utils.comm as comm
-from detectron2.data import MetadataCatalog
-from detectron2.engine import DefaultTrainer, default_argument_parser, default_setup, hooks, launch
-from detectron2.evaluation import (
-    # CityscapesInstanceEvaluator,
-    # CityscapesSemSegEvaluator,
-    # COCOEvaluator,
-    COCOPanopticEvaluator,
-    DatasetEvaluators,
-    LVISEvaluator,
-    PascalVOCDetectionEvaluator,
-    SemSegEvaluator,
-    verify_results,
-)
-from centermask.evaluation import (
-    COCOEvaluator,
-    CityscapesInstanceEvaluator,
-    CityscapesSemSegEvaluator
-)
-from detectron2.modeling import GeneralizedRCNNWithTTA
+import torch
 from detectron2.checkpoint import DetectionCheckpointer
+from detectron2.data import MetadataCatalog
+from detectron2.engine import (DefaultTrainer, default_argument_parser,
+                               default_setup, hooks, launch)
+from detectron2.evaluation import (COCOPanopticEvaluator, DatasetEvaluators,
+                                   LVISEvaluator, PascalVOCDetectionEvaluator,
+                                   SemSegEvaluator, verify_results)
+from detectron2.modeling import GeneralizedRCNNWithTTA
+
 from centermask.config import get_cfg
+from centermask.data import build_x_test_loader, build_x_train_loader
+from centermask.evaluation import (CityscapesInstanceEvaluator,
+                                   CityscapesSemSegEvaluator, COCOEvaluator)
 
 
 class Trainer(DefaultTrainer):
@@ -35,7 +27,27 @@ class Trainer(DefaultTrainer):
     `build_train_loader` method.
     """
 
+    @classmethod
+    def build_train_loader(cls, cfg):
+        """
+        Returns:
+            iterable
 
+        It now calls :func:`detectron2.data.build_detection_train_loader`.
+        Overwrite it if you'd like a different data loader.
+        """
+        return build_x_train_loader(cfg)
+
+    @classmethod
+    def build_test_loader(cls, cfg, dataset_name):
+        """
+        Returns:
+            iterable
+
+        It now calls :func:`detectron2.data.build_detection_test_loader`.
+        Overwrite it if you'd like a different data loader.
+        """
+        return build_x_test_loader(cfg, dataset_name)
 
     @classmethod
     def build_evaluator(cls, cfg, dataset_name, output_folder=None):

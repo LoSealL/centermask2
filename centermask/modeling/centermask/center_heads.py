@@ -15,7 +15,7 @@ from detectron2.layers import ShapeSpec
 # from detectron2.modeling.roi_heads.keypoint_head import build_keypoint_head
 from .keypoint_head import build_keypoint_head
 
-
+from centermask.utils.comm import filter_instance_classes, find_foreground_person
 from .mask_head import build_mask_head, mask_rcnn_loss, mask_rcnn_inference
 from .maskiou_head import build_maskiou_head, mask_iou_loss, mask_iou_inference
 from .proposal_utils import add_ground_truth_to_proposals
@@ -126,7 +126,10 @@ class ROIHeads(nn.Module):
         self.feature_strides          = {k: v.stride for k, v in input_shape.items()}
         self.feature_channels         = {k: v.channels for k, v in input_shape.items()}
         # fmt: on
-
+        # filter class
+        self.class_filter = []
+        if 'CLASS_FILTER' in cfg.MODEL.ROI_HEADS:
+            self.class_filter = cfg.MODEL.ROI_HEADS.CLASS_FILTER
         # Matcher to assign box proposals to gt boxes
         self.proposal_matcher = Matcher(
             cfg.MODEL.ROI_HEADS.IOU_THRESHOLDS,
@@ -393,6 +396,7 @@ class CenterROIHeads(ROIHeads):
         """
         del images
         if self.training:
+            targets = filter_instance_classes(targets, self.class_filter, self.training)
             proposals = self.label_and_sample_proposals(proposals, targets)
         del targets
 
@@ -479,6 +483,7 @@ class CenterROIHeads(ROIHeads):
                 return {"loss_mask": mask_rcnn_loss(mask_logits, proposals, self.maskiou_on)}
         else:
             # pred_boxes = [x.pred_boxes for x in instances]
+            # instances = find_foreground_person(instances)
             mask_features = self.mask_pooler(features, instances)
             mask_logits = self.mask_head(mask_features)
             mask_rcnn_inference(mask_logits, instances)
