@@ -1,27 +1,26 @@
 # Copyright (c) Youngwan Lee (ETRI) All Rights Reserved.
-import torch
-from torch import nn
 from typing import Dict, List, Optional, Tuple, Union
-import numpy as np
 
-from detectron2.modeling.roi_heads import (
-    ROI_HEADS_REGISTRY,
-)
-from detectron2.structures import Boxes, Instances, pairwise_iou, ImageList
-from detectron2.utils.events import get_event_storage
-from detectron2.modeling.matcher import Matcher
-from detectron2.modeling.sampling import subsample_labels
+import numpy as np
+import torch
 from detectron2.layers import ShapeSpec
+from detectron2.modeling.matcher import Matcher
+from detectron2.modeling.roi_heads import ROI_HEADS_REGISTRY
+from detectron2.modeling.sampling import subsample_labels
+from detectron2.structures import Boxes, ImageList, Instances, pairwise_iou
+from detectron2.utils.events import get_event_storage
+from torch import nn
+
+from centermask.utils.comm import (filter_instance_classes,
+                                   find_foreground_person)
+
 # from detectron2.modeling.roi_heads.keypoint_head import build_keypoint_head
 from .keypoint_head import build_keypoint_head
-
-from centermask.utils.comm import filter_instance_classes, find_foreground_person
-from .mask_head import build_mask_head, mask_rcnn_loss, mask_rcnn_inference
-from .maskiou_head import build_maskiou_head, mask_iou_loss, mask_iou_inference
-from .proposal_utils import add_ground_truth_to_proposals
+from .mask_head import build_mask_head, mask_rcnn_inference, mask_rcnn_loss
+from .maskiou_head import build_maskiou_head, mask_iou_inference, mask_iou_loss
 from .pooler import ROIPooler
-
-
+from .proposal_utils import add_ground_truth_to_proposals
+from .seg import build_segnet, segnet_loss
 
 __all__ = ["CenterROIHeads"]
 
@@ -313,6 +312,7 @@ class CenterROIHeads(ROIHeads):
         self._init_mask_head(cfg)
         self._init_mask_iou_head(cfg)
         self._init_keypoint_head(cfg, input_shape)
+        self._init_global_seg(cfg)
 
 
     def _init_mask_head(self, cfg):
@@ -384,6 +384,13 @@ class CenterROIHeads(ROIHeads):
             cfg, ShapeSpec(channels=in_channels, width=pooler_resolution, height=pooler_resolution)
         )
 
+    def _init_global_seg(self, cfg):
+        self.globalseg_on = cfg.MODEL.GLOBALSEG_ON
+        if not self.globalseg_on:
+            return
+        in_channels = [self.feature_channels[f] for f in self.in_features]
+        self.segnet = build_segnet(cfg, in_channels)
+
     def forward(
         self,
         images: ImageList,
@@ -406,6 +413,8 @@ class CenterROIHeads(ROIHeads):
                 losses.update(self._forward_maskiou(mask_features, proposals, selected_mask, labels, maskiou_targets))
             else:
                 losses = self._forward_mask(features, proposals)
+            if self.globalseg_on:
+                losses.update(self._forward_segnet(features, proposals))
             losses.update(self._forward_keypoint(features, proposals))
             return proposals, losses
         else:
@@ -556,3 +565,16 @@ class CenterROIHeads(ROIHeads):
             # pred_boxes = [x.pred_boxes for x in instances]
             keypoint_features = self.keypoint_pooler(features, instances)
             return self.keypoint_head(keypoint_features, instances)
+
+    def _forward_segnet(self, features, instances):
+        if not self.globalseg_on:
+            return {} if self.training else instances
+
+        features = [features[f] for f in self.in_features]
+        matte = self.segnet(features)
+        if self.training:
+            # The loss is only defined on positive proposals.
+            proposals, _ = select_foreground_proposals(instances, self.num_classes)
+            return {"seg_loss": segnet_loss(matte, proposals)}
+        else:
+            return matte.sigmoid()

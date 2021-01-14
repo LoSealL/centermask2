@@ -88,3 +88,10 @@ _C.MODEL.ROI_HEADS.CLASS_FILTER = []
 # ---------------------------------------------------------------------------- #
 _C.MODEL.ROI_KEYPOINT_HEAD.IN_FEATURES = ["p2", "p3", "p4", "p5"]
 _C.MODEL.ROI_KEYPOINT_HEAD.ASSIGN_CRITERION = "ratio"
+
+# ---------------------------------------------------------------------------- #
+# Global Seg
+# ---------------------------------------------------------------------------- #
+_C.MODEL.GLOBALSEG_ON = False
+_C.MODEL.SEGNET = CN()
+_C.MODEL.SEGNET.OUT_CHANNELS = 64
