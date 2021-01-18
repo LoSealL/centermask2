@@ -1,3 +1,6 @@
+# Human parsing dataset bitmask
+# + Random crop
+---
 MODEL:
   META_ARCHITECTURE: "GeneralizedRCNN"
   WEIGHTS: "mobilenet_v2_detectron2.pth"
@@ -39,8 +42,8 @@ MODEL:
     NUM_CONV: 2
     CONV_DIM: 128
 DATASETS:
-  TRAIN: ("cihp",)
-  TEST: ("coco_2017_val",)
+  TRAIN: ("atr",)
+  TEST: ("cihp_val",)
 SOLVER:
   CHECKPOINT_PERIOD: 10000
   IMS_PER_BATCH: 16
@@ -53,4 +56,8 @@ INPUT:
   MAX_SIZE_TRAIN: 256
   MIN_SIZE_TEST: 128
   MAX_SIZE_TEST: 256
-OUTPUT_DIR: "output/centermask/PersonMask-Lite-MNv2-SEG-ms-2x"
+  CROP:
+    ENABLED: True
+    TYPE: relative_range
+    SIZE: [0.8, 0.8]
+OUTPUT_DIR: "output/test_dataset"

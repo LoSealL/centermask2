@@ -1,41 +1,24 @@
-import contextlib
-import datetime
-import io
-import json
 import logging
 import os
-import shutil
 from pathlib import Path
 
 import numpy as np
 import pycocotools.mask as mask_util
-import torch
 from detectron2.data import DatasetCatalog
-from detectron2.structures import Boxes, BoxMode, PolygonMasks
-from detectron2.utils.file_io import PathManager
-from fvcore.common.file_io import file_lock
-from fvcore.common.timer import Timer
+from detectron2.structures import BoxMode
 from PIL import Image
 
-logger = logging.getLogger(__name__)
+from .utils import progress, seg_to_box
 
-
-def seg_to_box(ins):
-    if isinstance(ins, torch.Tensor):
-        assert ins.ndim == 2
-        y, x = torch.nonzero(ins, as_tuple=True)
-    else:
-        assert np.ndim(ins) == 2
-        y, x = ins.nonzero()
-
-    if not len(x) or not len(y):
-        return 0, 0, 0, 0
-    return x.min(), y.min(), x.max(), y.max()
+logger = logging.getLogger(f'detectron2.{__name__}')
 
 
 def load_cihp_dataset(image_path: Path, human_id_path: Path):
     datadict = []
-    for img in image_path.glob('*.jpg'):
+    files = sorted(image_path.glob('*.jpg'))
+    logger.info(f"loading CIHP dataset, glob {len(files)} images...")
+    for prog, img in enumerate(files):
+        progress(prog, len(files))
         record = {}
         img_head = Image.open(img)
         record['file_name'] = str(img.resolve())
@@ -73,7 +56,6 @@ def load_cihp_dataset(image_path: Path, human_id_path: Path):
     return datadict
 
 
-
 def register_cihp_instance(name, cihp_root):
     image_root = Path(cihp_root) / 'Images'
     human_id_root = Path(cihp_root) / 'Human_ids'
@@ -83,4 +65,5 @@ def register_cihp_instance(name, cihp_root):
 
 if __name__.endswith('.cihp'):
     _root = Path(os.getenv("DETECTRON2_DATASETS", "datasets"))
-    register_cihp_instance('cihp', _root / 'cihp')
+    register_cihp_instance('cihp_train', _root / 'CIHP' / 'Training')
+    register_cihp_instance('cihp_val', _root / 'CIHP' / 'Validation')

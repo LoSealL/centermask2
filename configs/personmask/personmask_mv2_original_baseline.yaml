@@ -50,4 +50,4 @@ INPUT:
   MAX_SIZE_TRAIN: 256
   MIN_SIZE_TEST: 128
   MAX_SIZE_TEST: 256
-OUTPUT_DIR: "output/centermask/PersonMask-Lite-MNv2-ms-4x"
+OUTPUT_DIR: "output/personmask/PersonMask-Lite-MNv2"
