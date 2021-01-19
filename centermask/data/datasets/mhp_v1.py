@@ -31,7 +31,7 @@ def load_mhpv1_dataset(image_path: Path, human_id_path: Path):
             logger.error(img)
             raise
         # mhpv1 anno is the startswith name as the image
-        human_ids = list(human_id_path.glob(img.stem + '_??_??.png'))
+        human_ids = sorted(human_id_path.glob(img.stem + '_??_??.png'))
         if len(human_ids) == 0:
             logger.warning(f"No annotation found for {img.stem}, skip it.")
             continue
