@@ -292,8 +292,6 @@ class ROIHeads(nn.Module):
         raise NotImplementedError()
 
 
-
-
 @ROI_HEADS_REGISTRY.register()
 class CenterROIHeads(ROIHeads):
     """
@@ -569,8 +567,8 @@ class CenterROIHeads(ROIHeads):
     def _forward_segnet(self, features, instances):
         if not self.globalseg_on:
             return {} if self.training else instances
-
-        features = [features[f] for f in self.in_features]
+        # from small to big features
+        features = [features[f] for f in reversed(self.in_features)]
         matte = self.segnet(features)
         if self.training:
             # The loss is only defined on positive proposals.

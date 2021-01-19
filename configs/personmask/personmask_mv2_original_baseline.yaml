@@ -1,6 +1,6 @@
 MODEL:
   META_ARCHITECTURE: "GeneralizedRCNN"
-  WEIGHTS: "mobilenet_v2_detectron2.pth"
+  WEIGHTS: "models/mobilenet_v2_detectron2.pth"
   BACKBONE:
     NAME: "build_fcos_mobilenetv2_fpn_backbone"
     FREEZE_AT: 0

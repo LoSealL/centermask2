@@ -1,46 +1,57 @@
 from typing import Optional
 
 import torch
+from detectron2.structures import ImageList
 from torch import nn
 from torch.nn import functional as F
 
 
-class FeatureUp(nn.Module):
-    def __init__(self, in_channels, out_channels, bridge_channels):
+class SeparableConv(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=3, padding=1):
         super().__init__()
-        self.conv1 = nn.Conv2d(in_channels, out_channels, 3, 1, 1)
-        self.up = nn.UpsamplingNearest2d(scale_factor=2)
-        self.conv2 = nn.Conv2d(
-            out_channels + bridge_channels, out_channels, 3, 1, 1)
+        self.depthwise = nn.Conv2d(
+            in_channels, in_channels, kernel_size,
+            padding=padding, groups=in_channels, bias=False)
+        self.pointwise = nn.Conv2d(in_channels, out_channels, 1)
 
-    def forward(self, x, bridge):
-        y = self.conv1(x)
-        y = self.up(y)
-        y = torch.cat((y, bridge), dim=1)
-        y = self.conv2(y)
-        return y
+    def forward(self, x):
+        d = self.depthwise(x)
+        p = self.pointwise(d)
+        return p
 
 
 class SegnetHead(nn.Module):
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels=1):
         super().__init__()
-        self.head = nn.Conv2d(in_channels[0], out_channels, 3, 1, 1)
-        self.body = nn.ModuleList()
+        self.project = nn.ModuleList()
+        self.cat_channels = [0]
+        mid_c = in_channels[0] // 4
         for ic in in_channels:
-            self.body.append(FeatureUp(out_channels, out_channels, ic))
-        self.tail = nn.Conv2d(out_channels, 1, 3, 1, 1)
+            mid_c = ic // 4
+            self.project.append(
+                nn.Sequential(
+                    SeparableConv(ic + self.cat_channels[-1], ic),
+                    nn.PixelShuffle(2),
+                ))
+            self.cat_channels.append(mid_c)
+        self.tail = nn.Sequential(
+            SeparableConv(mid_c, mid_c * 2),
+            nn.PixelShuffle(2),
+            nn.Conv2d(mid_c // 2, out_channels, 1))
 
     def forward(self, in_features):
-        in_features = in_features[::-1]
-        skip = [self.head(in_features[0])]
-        for net, feat in zip(self.body, in_features[1:]):
-            skip.append(net(skip[-1], feat))
-        matte = self.tail(skip[-1])
+        proj = []
+        for p, x in zip(self.project, in_features):
+            if proj:
+                x = torch.cat((x, proj[-1]), 1)
+            proj.append(p(x))
+        matte = self.tail(proj[-1])
         return matte
 
 
 def build_segnet(cfg, in_channels):
-    return SegnetHead(in_channels, cfg.MODEL.SEGNET.OUT_CHANNELS)
+    return SegnetHead(in_channels,
+                      cfg.MODEL.SEGNET.OUT_CHANNELS)
 
 
 def one_hot(labels: torch.Tensor,
@@ -277,20 +288,15 @@ class FocalDiceLoss(nn.Module):
 
 def gather_instance_to_global_mask(pred_mask_logits, instances):
     cls_agnostic_mask = pred_mask_logits.size(1) == 1
-    total_num_masks = pred_mask_logits.size(0)
-    mask_side_len = pred_mask_logits.size(2)
+    mask_size = pred_mask_logits.size()[-2:]
+    assert cls_agnostic_mask
 
     gt_masks = []
-    for instances_per_image in instances:
-        if len(instances_per_image) == 0:
-            continue
-        boxes = torch.tensor(
-            [0, 0, *instances_per_image.image_size]).repeat([len(instances_per_image), 4])
-        gt_masks_per_image = instances_per_image.gt_masks.crop_and_resize(
-            boxes, mask_side_len
-        ).to(device=pred_mask_logits.device).sum(0).clamp(0, 1)
-        gt_masks.append(gt_masks_per_image)
-    return torch.stack(gt_masks)
+    for ins_per_im in instances:
+        # assert mask_size == ins_per_im.gt_masks.image_size
+        gt_masks.append(ins_per_im.gt_masks.tensor.any(0)[None] != 0)
+    # FIXME replace hard coded 32
+    return ImageList.from_tensors(gt_masks, 32).tensor
 
 
 def segnet_loss(pred_mask_logits, instances):

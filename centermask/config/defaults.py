@@ -94,4 +94,4 @@ _C.MODEL.ROI_KEYPOINT_HEAD.ASSIGN_CRITERION = "ratio"
 # ---------------------------------------------------------------------------- #
 _C.MODEL.GLOBALSEG_ON = False
 _C.MODEL.SEGNET = CN()
-_C.MODEL.SEGNET.OUT_CHANNELS = 64
+_C.MODEL.SEGNET.OUT_CHANNELS = 1
